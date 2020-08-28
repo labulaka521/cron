@@ -91,6 +91,7 @@ func (p Parser) Parse(spec string) (Schedule, error) {
 	}
 
 	// Extract timezone if present
+	// 时区
 	var loc = time.Local
 	if strings.HasPrefix(spec, "TZ=") || strings.HasPrefix(spec, "CRON_TZ=") {
 		var err error
@@ -102,7 +103,7 @@ func (p Parser) Parse(spec string) (Schedule, error) {
 		spec = strings.TrimSpace(spec[i:])
 	}
 
-	// Handle named schedules (descriptors), if configured
+	// 简短cronexpr表达式
 	if strings.HasPrefix(spec, "@") {
 		if p.options&Descriptor == 0 {
 			return nil, fmt.Errorf("parser does not accept descriptors: %v", spec)
@@ -110,16 +111,18 @@ func (p Parser) Parse(spec string) (Schedule, error) {
 		return parseDescriptor(spec, loc)
 	}
 
-	// Split on whitespace.
+	// 通过空格分割
 	fields := strings.Fields(spec)
 
 	// Validate & fill in any omitted or optional fields
 	var err error
+	// 补充不存在的时间段
 	fields, err = normalizeFields(fields, p.options)
 	if err != nil {
 		return nil, err
 	}
 
+	// 位运算
 	field := func(field string, r bounds) uint64 {
 		if err != nil {
 			return 0
@@ -233,6 +236,8 @@ func ParseStandard(standardSpec string) (Schedule, error) {
 // getField returns an Int with the bits set representing all of the times that
 // the field represents or error parsing field value.  A "field" is a comma-separated
 // list of "ranges".
+
+// 返回一个uint64类型数字，表示了所有时间字段
 func getField(field string, r bounds) (uint64, error) {
 	var bits uint64
 	ranges := strings.FieldsFunc(field, func(r rune) bool { return r == ',' })
@@ -248,30 +253,41 @@ func getField(field string, r bounds) (uint64, error) {
 
 // getRange returns the bits indicated by the given expression:
 //   number | number "-" number [ "/" number ]
-// or error parsing range.
+// or error parsing range
+// 返回一个位运算后的值
+// 可以查看parse_test.go:12
 func getRange(expr string, r bounds) (uint64, error) {
 	var (
 		start, end, step uint
-		rangeAndStep     = strings.Split(expr, "/")
-		lowAndHigh       = strings.Split(rangeAndStep[0], "-")
+		rangeAndStep     = strings.Split(expr, "/")            //  2-10/10  // 分割步长
+		lowAndHigh       = strings.Split(rangeAndStep[0], "-") // 分割最小和最大
 		singleDigit      = len(lowAndHigh) == 1
 		err              error
 	)
 
+	// 计算start和end
 	var extra uint64
 	if lowAndHigh[0] == "*" || lowAndHigh[0] == "?" {
 		start = r.min
 		end = r.max
-		extra = starBit
+		extra = starBit // 如果为*extra设置为 63 << 1
 	} else {
+		// 解析第一个字段 为start
+		// 解析字符串或者周、月为数字，只有月和周r.names才不为nil
 		start, err = parseIntOrName(lowAndHigh[0], r.names)
 		if err != nil {
 			return 0, err
 		}
 		switch len(lowAndHigh) {
 		case 1:
+			// 字段无范围
+			// end等于start
 			end = start
+			fmt.Println(expr, end)
 		case 2:
+			// 字段有范围
+			// 有范围则解析第二哥字段，
+
 			end, err = parseIntOrName(lowAndHigh[1], r.names)
 			if err != nil {
 				return 0, err
@@ -281,20 +297,25 @@ func getRange(expr string, r bounds) (uint64, error) {
 		}
 	}
 
+	// 计算步长
 	switch len(rangeAndStep) {
 	case 1:
+		// rangeAndStep 为1 没有/符号 表示没有设置步长
 		step = 1
 	case 2:
+		// rangeAndStep的第二个参数是步长
 		step, err = mustParseInt(rangeAndStep[1])
 		if err != nil {
 			return 0, err
 		}
 
 		// Special handling: "N/step" means "N-max/step".
-		if singleDigit {
+		//
+		if singleDigit { // 为 true表示没有设置范围 即表达式类似 10/1
 			end = r.max
+			fmt.Println(expr, end)
 		}
-		if step > 1 {
+		if step > 1 { // 步长大于1 extra设置为0
 			extra = 0
 		}
 	default:
@@ -341,16 +362,26 @@ func mustParseInt(expr string) (uint, error) {
 }
 
 // getBits sets all bits in the range [min, max], modulo the given step size.
+//
 func getBits(min, max, step uint) uint64 {
 	var bits uint64
-
+		// & 与运算
+		// & 都为1返回1，则返回0
+		// ｜ 有1返回1，则返回0
+		// ^ 不相同返回1，相同返回0
+		// << zuo
 	// If step is 1, use shifts.
 	if step == 1 {
+		// 小优化
+		// 如果 步长为1 直接生成位值全为1的数
+		// 总共有max-min+1
 		return ^(math.MaxUint64 << (max + 1)) & (math.MaxUint64 << min)
 	}
 
 	// Else, use a simple loop.
+	// 步长不为1
 	for i := min; i <= max; i += step {
+		// 或运算
 		bits |= 1 << i
 	}
 	return bits
