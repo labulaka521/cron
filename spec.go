@@ -82,28 +82,38 @@ func (s *SpecSchedule) Next(t time.Time) time.Time {
 	t = t.Add(1*time.Second - time.Duration(t.Nanosecond())*time.Nanosecond)
 
 	// This flag indicates whether a field has been incremented.
+	// added 初始化时间
 	added := false
 
 	// If no time is found within five years, return zero.
 	yearLimit := t.Year() + 5
 
 WRAP:
+	// 年份限制五年内
 	if t.Year() > yearLimit {
 		return time.Time{}
 	}
 
 	// Find the first applicable month.
 	// If it's this month, then do nothing.
+	//  
+	// 寻找月份
+	// s.month == [...]
+	// 如果与运算后值为0，则需要增大日期后再次查找直接与运算和不为0
 	for 1<<uint(t.Month())&s.Month == 0 {
 		// If we have to add a month, reset the other parts to 0.
+		// 如果没有初始化，则将比月份小的时间字段修改为0
 		if !added {
 			added = true
 			// Otherwise, set the date at the beginning (since the current time is irrelevant).
+			// 将一些时间字段置为0
 			t = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc)
 		}
+		// 将月份加1
 		t = t.AddDate(0, 1, 0)
 
 		// Wrapped around.
+		// 如果月份为1月，需要再次检查年份是否超出限制
 		if t.Month() == time.January {
 			goto WRAP
 		}
@@ -114,6 +124,7 @@ WRAP:
 	// NOTE: This causes issues for daylight savings regimes where midnight does
 	// not exist.  For example: Sao Paulo has DST that transforms midnight on
 	// 11/3 into 1am. Handle that by noticing when the Hour ends up != 0.
+	// 匹配某个月的天数
 	for !dayMatches(s, t) {
 		if !added {
 			added = true
@@ -176,6 +187,7 @@ WRAP:
 
 // dayMatches returns true if the schedule's day-of-week and day-of-month
 // restrictions are satisfied by the given time.
+// 匹配星期或者日期
 func dayMatches(s *SpecSchedule, t time.Time) bool {
 	var (
 		domMatch bool = 1<<uint(t.Day())&s.Dom > 0

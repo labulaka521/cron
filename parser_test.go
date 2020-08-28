@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ func TestRange(t *testing.T) {
 		{"5-6/2", 0, 7, 1 << 5, ""},
 		{"5-7/2", 0, 7, 1<<5 | 1<<7, ""},
 		{"5-7/1", 0, 7, 1<<5 | 1<<6 | 1<<7, ""},
+		{"5/1", 0, 7, 1<<5 | 1<<6 | 1<<7, ""},
 
 		{"*", 1, 3, 1<<1 | 1<<2 | 1<<3 | starBit, ""},
 		{"*/2", 1, 3, 1<<1 | 1<<3, ""},
@@ -103,8 +105,8 @@ func TestBits(t *testing.T) {
 		min, max, step uint
 		expected       uint64
 	}{
-		{0, 0, 1, 0x1},
-		{1, 1, 1, 0x2},
+		{0, 0, 1, 0x1},  // 01
+		{1, 1, 1, 0x2},  // 10
 		{1, 5, 2, 0x2a}, // 101010
 		{1, 4, 2, 0xa},  // 1010
 	}
@@ -116,6 +118,10 @@ func TestBits(t *testing.T) {
 				c.min, c.max, c.step, c.expected, actual)
 		}
 	}
+}
+
+func TestGetBits(t *testing.T) {
+	fmt.Println(getBits(1, 10, 1))
 }
 
 func TestParseScheduleErrors(t *testing.T) {
